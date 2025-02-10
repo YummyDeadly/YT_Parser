@@ -52,5 +52,4 @@ This project is a Python-based YouTube Shorts parser and downloader. It uses Sel
 - Some videos may be unavailable due to YouTube's restrictions.
 
 ## License
-This project is licensed under the MIT License.
-
+Sub to https://t.me/etochvzh
