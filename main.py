@@ -9,9 +9,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 from tqdm import tqdm
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk
+import threading
 
-def check_youtube(url_loc: str) -> bool:
-    return url_loc.startswith("https://www.youtube.com/") and "/shorts" in url_loc
+def check_youtube(url_loc: str, format_choice: str) -> bool:
+    if format_choice == "shorts":
+        return url_loc.startswith("https://www.youtube.com/") and "/shorts" in url_loc
+    elif format_choice == "video":
+        return url_loc.startswith("https://www.youtube.com/watch?v=")
+    return False
 
 def parser(url_local: str) -> List[List[str]]:
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
@@ -51,51 +59,61 @@ def parser(url_local: str) -> List[List[str]]:
     finally:
         driver.quit()
 
-def save_to_csv(links: List[str], titles: List[str], views: List[str], filename: str) -> None:
-    df = pd.DataFrame(list(zip(titles, links, views)), columns=['Title', 'Link', 'View'])
-    os.makedirs("data", exist_ok=True)
-    df.to_csv(f"data/{filename}.csv", index=False)
-    
-    for _ in tqdm(titles, desc="Saving data"):
-        time.sleep(0.01)
-    print(f"Data saved to data/{filename}.csv")
-
-def download_videos(links: List[str], download_path: str = "downloads"):
+def download_videos(links: List[str], num_downloads: int, download_path: str = "downloads"):
     if download_path is None:
-        download_path = os.path.join(os.getcwd(), "downloads")
+        # Получаем путь к директории, где находится скрипт
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        # Указываем папку рядом с этим скриптом для загрузки
+        download_path = os.path.join(script_dir, "YouTube_Videos")
+        
     os.makedirs(download_path, exist_ok=True)
     
-    ydl_opts = {
+    ydl_opts = { 
         'outtmpl': f'{download_path}/%(title)s.%(ext)s',
         'format': 'mp4',
-        'retries': 10,  # Повторные попытки при ошибках
-        'socket_timeout': 30,  
-        'proxy': '', # Введите ваш прокси
-        'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},  # Обход ограничений
+        'retries': 10,
+        'socket_timeout': 30,
+        'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        time.sleep(5)
-        for link in tqdm(links, desc="Downloading videos"):
+        for i, link in enumerate(tqdm(links[:num_downloads], desc="Downloading videos")):
             try:
-                # Скачиваем видео
                 ydl.download([link])
             except Exception as e:
                 print(f"Failed to download {link}: {e}")
 
+def main():
+    format_choice = input("Choose format (shorts/video): ").strip().lower()
+    if format_choice not in ["shorts", "video"]:
+        print("Invalid format. Please choose 'shorts' or 'video'.")
+        return
+    
+    url = input(f"Enter a YouTube {format_choice} page URL: ").strip()
+    if not check_youtube(url, format_choice):
+        print("Invalid URL. Make sure it's a valid YouTube page.")
+        return
+    
+    if format_choice == "shorts":
+        links, titles, views = parser(url)
+        if not links:
+            print("No videos found.")
+            return
+        
+        print(f"Found {len(links)} videos.")
+        num_downloads = input(f"How many videos do you want to download? (1 to {len(links)}): ").strip()
+        try:
+            num_downloads = int(num_downloads)
+            if num_downloads < 1 or num_downloads > len(links):
+                print("Invalid number of downloads.")
+                return
+        except ValueError:
+            print("Invalid input. Please enter a valid number.")
+            return
+        
+        download_videos(links, num_downloads)
+    else:
+        download_videos([url], 1)
+
 if __name__ == "__main__":
-    while True:
-        url = input("Enter a YouTube Shorts page URL: ")
-        if check_youtube(url):
-            links, titles, views = parser(url)
-            if links:
-                filename = url.split("/")[-1]
-                save_to_csv(links, titles, views, filename)
-                
-                print("Do you want to download the videos? (yes/no)")
-                if input().strip().lower() == "yes":
-                    download_videos(links)
-            else:
-                print("No videos found.")
-        else:
-            print("Invalid URL. Make sure it's a YouTube Shorts page.")
+    main()
