@@ -1,6 +1,7 @@
 import pandas as pd
 import time
 import os
+import yt_dlp
 from typing import List
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -8,7 +9,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 from tqdm import tqdm
-import yt_dlp
 
 def check_youtube(url_loc: str) -> bool:
     return url_loc.startswith("https://www.youtube.com/") and "/shorts" in url_loc
@@ -61,16 +61,24 @@ def save_to_csv(links: List[str], titles: List[str], views: List[str], filename:
     print(f"Data saved to data/{filename}.csv")
 
 def download_videos(links: List[str], download_path: str = "downloads"):
+    if download_path is None:
+        download_path = os.path.join(os.getcwd(), "downloads")
     os.makedirs(download_path, exist_ok=True)
     
     ydl_opts = {
         'outtmpl': f'{download_path}/%(title)s.%(ext)s',
         'format': 'mp4',
+        'retries': 10,  # Повторные попытки при ошибках
+        'socket_timeout': 30,  
+        'proxy': '', # Введите ваш прокси
+        'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},  # Обход ограничений
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        time.sleep(5)
         for link in tqdm(links, desc="Downloading videos"):
             try:
+                # Скачиваем видео
                 ydl.download([link])
             except Exception as e:
                 print(f"Failed to download {link}: {e}")
